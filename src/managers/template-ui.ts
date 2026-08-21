@@ -12,6 +12,7 @@ import { updatePropertyType } from './property-types-manager';
 import { getMessage } from '../utils/i18n';
 import {
 	parse,
+	standardFilterMetadata,
 	validateFilters,
 	validateVariables,
 	type FilterMetadata,
@@ -19,6 +20,7 @@ import {
 let hasUnsavedChanges = false;
 
 const clipperFilterMetadata: Record<string, FilterMetadata> = {
+	...standardFilterMetadata,
 	markdown: {},
 	html_to_json: {},
 	remove_html: {},

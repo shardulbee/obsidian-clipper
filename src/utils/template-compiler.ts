@@ -3,16 +3,12 @@
 // integrating the AST-based renderer with the variable processors.
 
 import { createEngine } from '@obsidianmd/knap';
-import { clipperFilters } from './filters';
+import { clipperFilters, type ClipperTemplateContext } from './filters';
 import { processSimpleVariable } from './variables/simple';
 import { processSelector, resolveSelector } from './variables/selector';
 import { processSchema } from './variables/schema';
 import { processPrompt } from './variables/prompt';
 import { isModelVariable, processModelVariable } from './variables/model';
-
-interface ClipperEngineContext {
-	tabId: number;
-}
 
 export interface RenderContext {
 	variables: Record<string, any>;
@@ -22,7 +18,7 @@ export interface RenderContext {
 
 export type AsyncResolver = (name: string, context: RenderContext) => Promise<any>;
 
-const engine = createEngine<ClipperEngineContext>({ filters: clipperFilters });
+const engine = createEngine<ClipperTemplateContext>({ filters: clipperFilters });
 
 interface DeferredTemplates {
 	template: string;
@@ -117,8 +113,7 @@ export async function compileTemplate(
 			...variables,
 			...deferred.variables,
 		},
-		currentUrl,
-		context: { tabId },
+		context: { tabId, currentUrl },
 		resolveVariable,
 	});
 

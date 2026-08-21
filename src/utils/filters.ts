@@ -7,18 +7,23 @@ import {
 import { htmlFilters } from '@obsidianmd/knap/html';
 import { markdown } from './filters/markdown';
 
-const markdownFilter: TemplateFilter = (value, param, context) =>
-	markdown(value, param ?? context?.currentUrl);
+export interface ClipperTemplateContext {
+	currentUrl?: string;
+	tabId?: number;
+}
+
+const markdownFilter: TemplateFilter<ClipperTemplateContext> = (value, param, filterContext) =>
+	markdown(value, param ?? filterContext?.context?.currentUrl);
 markdownFilter.metadata = {};
 
-const fragmentLinkFilter: TemplateFilter = (value, param, context) => {
-	const combinedParam = [param, context?.currentUrl].filter(Boolean).join(':');
-	return standardFilters.fragment_link(value, combinedParam, context);
+const fragmentLinkFilter: TemplateFilter<ClipperTemplateContext> = (value, param, filterContext) => {
+	const combinedParam = [param, filterContext?.context?.currentUrl].filter(Boolean).join(':');
+	return standardFilters.fragment_link(value, combinedParam, filterContext);
 };
 fragmentLinkFilter.metadata = {};
 
 /** Knap's shared filters plus the browser/Defuddle filters enabled by Clipper. */
-export const clipperFilters: Readonly<FilterRegistry> = Object.freeze({
+export const clipperFilters: Readonly<FilterRegistry<ClipperTemplateContext>> = Object.freeze({
 	...standardFilters,
 	...htmlFilters,
 	markdown: markdownFilter,
@@ -33,6 +38,6 @@ export function applyFilters(
 ): string {
 	return applyFiltersWithRegistry(value, filterString, clipperFilters, {
 		variables: {},
-		currentUrl,
+		context: { currentUrl },
 	});
 }
