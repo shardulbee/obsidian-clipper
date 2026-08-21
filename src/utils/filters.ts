@@ -30,13 +30,22 @@ export const clipperFilters: Readonly<FilterRegistry<ClipperTemplateContext>> = 
 	fragment_link: fragmentLinkFilter,
 });
 
+const diagnosticFilters = new Proxy(clipperFilters, {
+	get(target, property, receiver) {
+		if (typeof property === 'string' && !Reflect.has(target, property)) {
+			console.error(`Invalid filter: ${property}`);
+		}
+		return Reflect.get(target, property, receiver);
+	},
+});
+
 /** Apply a filter chain in Clipper-only post-processing paths. */
 export function applyFilters(
 	value: string | any[],
 	filterString: string,
 	currentUrl?: string,
 ): string {
-	return applyFiltersWithRegistry(value, filterString, clipperFilters, {
+	return applyFiltersWithRegistry(value, filterString, diagnosticFilters, {
 		variables: {},
 		context: { currentUrl },
 	});

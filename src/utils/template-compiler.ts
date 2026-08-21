@@ -9,6 +9,7 @@ import { processSelector, resolveSelector } from './variables/selector';
 import { processSchema } from './variables/schema';
 import { processPrompt } from './variables/prompt';
 import { isModelVariable, processModelVariable } from './variables/model';
+import { resolveSchemaVariable } from './resolver';
 
 export interface RenderContext {
 	variables: Record<string, any>;
@@ -23,6 +24,109 @@ const engine = createEngine<ClipperTemplateContext>({ filters: clipperFilters })
 interface DeferredTemplates {
 	template: string;
 	variables: Record<string, string>;
+	expressions: DeferredExpression[];
+}
+
+interface DeferredExpression {
+	token: string;
+	template: string;
+	kind: 'model' | 'prompt';
+}
+
+interface TemplateExpression {
+	end: number;
+	expression: string;
+	trimLeft: boolean;
+	trimRight: boolean;
+}
+
+function readTemplateExpression(text: string, start: number): TemplateExpression | null {
+	let index = start + 2;
+	const trimLeft = text[index] === '-';
+	if (trimLeft) index++;
+	const expressionStart = index;
+	let quote: '"' | "'" | null = null;
+	let escaped = false;
+
+	while (index < text.length - 1) {
+		const char = text[index];
+		if (quote) {
+			if (escaped) {
+				escaped = false;
+			} else if (char === '\\') {
+				escaped = true;
+			} else if (char === quote) {
+				quote = null;
+			}
+			index++;
+			continue;
+		}
+
+		if (char === '"' || char === "'") {
+			quote = char;
+			index++;
+			continue;
+		}
+
+		if (char === '}' && text[index + 1] === '}') {
+			const trimRight = text[index - 1] === '-';
+			return {
+				end: index + 2,
+				expression: text.slice(expressionStart, trimRight ? index - 1 : index),
+				trimLeft,
+				trimRight,
+			};
+		}
+
+		index++;
+	}
+
+	return null;
+}
+
+function canonicalizeDeferredExpression(expression: string): Omit<DeferredExpression, 'token'> | null {
+	const value = expression.trim();
+	const modelMatch = value.match(/^(modelProvider|modelId|model)(?:\s*\|\s*([\s\S]*))?$/);
+	if (modelMatch) {
+		const [, name, filters] = modelMatch;
+		return {
+			kind: 'model',
+			template: `{{${name}${filters?.trim() ? `|${filters.trim()}` : ''}}}`,
+		};
+	}
+
+	const hasPromptPrefix = value.startsWith('prompt:');
+	const promptExpression = hasPromptPrefix ? value.slice('prompt:'.length).trimStart() : value;
+	const quote = promptExpression[0];
+	if (quote !== '"' && quote !== "'") return null;
+
+	let closingQuote = -1;
+	let escaped = false;
+	for (let index = 1; index < promptExpression.length; index++) {
+		const char = promptExpression[index];
+		if (escaped) {
+			escaped = false;
+		} else if (char === '\\') {
+			escaped = true;
+		} else if (char === quote) {
+			closingQuote = index;
+			break;
+		}
+	}
+	if (closingQuote === -1) return null;
+
+	const remainder = promptExpression.slice(closingQuote + 1).trim();
+	if (remainder && !remainder.startsWith('|')) return null;
+	const filters = remainder ? remainder.slice(1).trim() : '';
+	let prompt = promptExpression.slice(1, closingQuote);
+	if (quote === "'") {
+		prompt = prompt.replace(/\\'/g, "'").replace(/"/g, '\\"');
+	}
+
+	return {
+		kind: 'prompt',
+		template: `{{${hasPromptPrefix ? 'prompt:' : ''}"${prompt}"${filters ? `|${filters}` : ''}}}`,
+	};
 }
 
 /**
@@ -33,27 +137,54 @@ interface DeferredTemplates {
  */
 function protectDeferredTemplates(text: string, variables: Record<string, any>): DeferredTemplates {
 	const deferredVariables: Record<string, string> = {};
+	const expressions: DeferredExpression[] = [];
 	let deferredIndex = 0;
+	let cursor = 0;
+	let searchFrom = 0;
+	let template = '';
 
-	const template = text.replace(/{{(-)?\s*([\s\S]*?)\s*(-)?}}/g, (match, trimLeft, expression, trimRight) => {
-		const value = String(expression).trim();
-		const isPrompt = /^(?:prompt:)?["']/.test(value);
-		const isModel = /^(?:model|modelId|modelProvider)(?:\s*\||\s*$)/.test(value);
-
-		if (!isPrompt && !isModel) {
-			return match;
+	while (searchFrom < text.length) {
+		const start = text.indexOf('{{', searchFrom);
+		if (start === -1) break;
+		const parsed = readTemplateExpression(text, start);
+		if (!parsed) break;
+		const deferred = canonicalizeDeferredExpression(parsed.expression);
+		if (!deferred) {
+			searchFrom = start + 2;
+			continue;
 		}
 
 		let key: string;
 		do {
 			key = `__knap_deferred_${deferredIndex++}`;
 		} while (key in variables || key in deferredVariables);
+		const token = `\uE000knap-deferred-${deferredIndex}\uE001`;
 
-		deferredVariables[key] = match;
-		return `{{${trimLeft ? '-' : ''}${key}${trimRight ? '-' : ''}}}`;
-	});
+		template += text.slice(cursor, start);
+		template += `{{${parsed.trimLeft ? '-' : ''}${key}${parsed.trimRight ? '-' : ''}}}`;
+		deferredVariables[key] = token;
+		expressions.push({ ...deferred, token });
+		cursor = parsed.end;
+		searchFrom = parsed.end;
+	}
 
-	return { template, variables: deferredVariables };
+	template += text.slice(cursor);
+	return { template, variables: deferredVariables, expressions };
+}
+
+async function restoreDeferredTemplates(
+	output: string,
+	expressions: DeferredExpression[],
+	variables: Record<string, any>,
+	currentUrl: string,
+): Promise<string> {
+	for (const expression of expressions) {
+		const replacement = expression.kind === 'prompt'
+			? await processPrompt(expression.template, variables, currentUrl)
+			: await processModelVariable(expression.template);
+		output = output.split(expression.token).join(replacement);
+	}
+	return output;
 }
 
 /**
@@ -102,7 +233,7 @@ export async function compileTemplate(
 			return resolveSelector(tabId, name);
 		}
 		if (name.startsWith('schema:')) {
-			return processSchema(`{{${name}}}`, variables, currentUrl);
+			return resolveSchemaVariable(name, variables);
 		}
 
 		return undefined;
@@ -131,15 +262,11 @@ export async function compileTemplate(
 	}
 
 	// Skip application post-processing if no prompt/model expressions were protected.
-	if (Object.keys(deferred.variables).length === 0) {
+	if (deferred.expressions.length === 0) {
 		return result.output;
 	}
 
-	// Post-process: handle special variable types that weren't processed by the renderer
-	// The renderer handles basic variables, but special prefixes need custom processing
-	const processedText = await processVariables(tabId, result.output, variables, currentUrl, customSelectorProcessor);
-
-	return processedText;
+	return restoreDeferredTemplates(result.output, deferred.expressions, variables, currentUrl);
 }
 
 /**

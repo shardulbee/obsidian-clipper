@@ -181,3 +181,36 @@ describe('Template diagnostics', () => {
 		}
 	});
 });
+
+describe('Schema array compatibility', () => {
+	const variables = {
+		'{{schema:@Movie:director}}': JSON.stringify([{ name: 'Nolan' }, { name: 'Villeneuve' }]),
+		'{{schema:@Movie:genre}}': JSON.stringify(['Drama', 'Thriller']),
+	};
+
+	test('iterates over complete array items', async () => {
+		const output = await compileTemplate(
+			0,
+			'{% for director in schema:@Movie:director[*] %}{{director.name}}{% endfor %}',
+			variables,
+			'https://example.com',
+		);
+		expect(output).toBe('Nolan\nVilleneuve');
+	});
+
+	test('returns complete arrays and indexed values without a property path', async () => {
+		await expect(compileTemplate(
+			0,
+			'{{schema:@Movie:director[*]}}',
+			variables,
+			'https://example.com',
+		)).resolves.toBe('[{"name":"Nolan"},{"name":"Villeneuve"}]');
+
+		await expect(compileTemplate(
+			0,
+			'{{schema:@Movie:genre[0]}}',
+			variables,
+			'https://example.com',
+		)).resolves.toBe('Drama');
+	});
+});

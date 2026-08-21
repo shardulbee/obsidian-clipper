@@ -2,7 +2,7 @@
 // Tests for interpreter model variables ({{model}}, {{modelId}}, {{modelProvider}}).
 // These are preserved through template compilation and filled in by the
 // interpreter once a model has actually been used (issue #360).
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { compileTemplate } from './template-compiler';
 import { replaceModelVariables } from './interpreter';
 import { generalSettings } from './storage-utils';
@@ -52,6 +52,40 @@ describe('Model variables in templates', () => {
 		expect(output).toBe('{{"Summarize this"|callout:("info","Summary",false)}}');
 	});
 
+	test('normalizes whitespace before interpreter post-processing', async () => {
+		generalSettings.interpreterEnabled = true;
+		const output = await compileTemplate(
+			0,
+			'{{ model }} / {{model | lower}} / {{ "Summarize this" | upper }}',
+			{},
+			'https://example.com',
+		);
+		expect(output).toBe('{{model}} / {{model|lower}} / {{"Summarize this"|upper}}');
+	});
+
+	test('normalizes single-quoted prompts instead of rendering them immediately', async () => {
+		generalSettings.interpreterEnabled = true;
+		const output = await compileTemplate(0, "{{'hello'|upper}}", {}, 'https://example.com');
+		expect(output).toBe('{{"hello"|upper}}');
+	});
+
+	test('preserves nested template syntax inside prompt text', async () => {
+		generalSettings.interpreterEnabled = true;
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		try {
+			const output = await compileTemplate(
+				0,
+				'Head {{"Summarize {{title}} now"}} Tail',
+				{},
+				'https://example.com',
+			);
+			expect(output).toBe('Head {{"Summarize {{title}} now"}} Tail');
+			expect(errorSpy).not.toHaveBeenCalled();
+		} finally {
+			errorSpy.mockRestore();
+		}
+	});
+
 	test('are removed when interpreter is disabled', async () => {
 		generalSettings.interpreterEnabled = false;
 		const output = await compileTemplate(0, 'Summarized by {{model}}', {}, 'https://example.com');
@@ -82,6 +116,14 @@ describe('replaceModelVariables', () => {
 		const textarea = addTextarea('note-content-field', '{{model|lower|replace:" ":"-"}}');
 		replaceModelVariables(modelConfig, provider);
 		expect(textarea.value).toBe('claude-5-sonnet');
+	});
+
+	test('replaces model variables after compilation normalizes whitespace', async () => {
+		generalSettings.interpreterEnabled = true;
+		const compiled = await compileTemplate(0, '{{ model }} / {{model | lower}}', {}, 'https://example.com');
+		const textarea = addTextarea('note-content-field', compiled);
+		replaceModelVariables(modelConfig, provider);
+		expect(textarea.value).toBe('Claude 5 Sonnet / claude 5 sonnet');
 	});
 
 	test('leaves other template syntax untouched', () => {
