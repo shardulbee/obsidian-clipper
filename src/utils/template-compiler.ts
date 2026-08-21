@@ -121,6 +121,14 @@ export async function compileTemplate(
 	if (result.errors.length > 0) {
 		console.error('Template compilation errors:', result.errors.map(e => `Line ${e.line}: ${e.message}`).join('; '));
 	}
+	if (result.warnings.length > 0) {
+		console.warn(
+			'Template compilation warnings:',
+			result.warnings.map(warning =>
+				`Line ${warning.line}, filter ${warning.filter}: ${warning.message}`
+			).join('; '),
+		);
+	}
 
 	// Skip application post-processing if no prompt/model expressions were protected.
 	if (Object.keys(deferred.variables).length === 0) {

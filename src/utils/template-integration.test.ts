@@ -158,3 +158,26 @@ describe('Template fixtures', () => {
 		expect(result.trim()).toEqual(expected.trim());
 	});
 });
+
+describe('Template diagnostics', () => {
+	test('surfaces non-fatal Knap filter warnings', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const output = await compileTemplate(
+				0,
+				'{{ value | replace:"/[/":"x" }}',
+				{ value: 'a[b' },
+				'https://example.com',
+			);
+
+			expect(output).toBe('a[b');
+			expect(warnSpy).toHaveBeenCalledWith(
+				'Template compilation warnings:',
+				expect.stringContaining('filter replace'),
+			);
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+});
