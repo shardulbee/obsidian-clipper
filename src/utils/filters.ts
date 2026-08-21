@@ -1,189 +1,46 @@
-import { FilterFunction } from '../types/types';
+import {
+	standardFilters,
+	type FilterMetadata,
+	type FilterRegistry,
+	type TemplateFilter,
+} from '@obsidian/knap';
+import { htmlFilters } from '@obsidian/knap/html';
 import { debugLog } from './debug';
 import { createParserState, processCharacter } from './parser-utils';
-
-import { blockquote } from './filters/blockquote';
-import { calc, validateCalcParams } from './filters/calc';
-import { callout } from './filters/callout';
-import { camel } from './filters/camel';
-import { capitalize } from './filters/capitalize';
-import { date } from './filters/date';
-import { date_modify, validateDateModifyParams } from './filters/date_modify';
-import { decode_uri } from './filters/decode_uri';
-import { first } from './filters/first';
-import { footnote } from './filters/footnote';
 import { fragment_link } from './filters/fragment_link';
-import { html_to_json } from './filters/html_to_json';
-import { image } from './filters/image';
-import { join } from './filters/join';
-import { kebab } from './filters/kebab';
-import { last } from './filters/last';
-import { list, validateListParams } from './filters/list';
-import { link } from './filters/link';
-import { length } from './filters/length';
-import { lower } from './filters/lower';
-import { map, validateMapParams } from './filters/map';
 import { markdown } from './filters/markdown';
-import { merge } from './filters/merge';
-import { nth, validateNthParams } from './filters/nth';
-import { number_format } from './filters/number_format';
-import { object, validateObjectParams } from './filters/object';
-import { pascal } from './filters/pascal';
-import { reverse } from './filters/reverse';
-import { remove_attr } from './filters/remove_attr';
-import { remove_html } from './filters/remove_html';
-import { remove_tags } from './filters/remove_tags';
-import { replace, validateReplaceParams } from './filters/replace';
-import { replace_tags } from './filters/replace_tags';
-import { round, validateRoundParams } from './filters/round';
-import { safe_name, validateSafeNameParams } from './filters/safe_name';
-import { slice, validateSliceParams } from './filters/slice';
-import { snake } from './filters/snake';
-import { split } from './filters/split';
-import { strip_attr } from './filters/strip_attr';
-import { strip_md } from './filters/strip_md';
-import { strip_tags } from './filters/strip_tags';
-import { table } from './filters/table';
-import { template, validateTemplateParams } from './filters/template';
-import { title } from './filters/title';
-import { trim } from './filters/trim';
-import { uncamel } from './filters/uncamel';
-import { unescape } from './filters/unescape';
-import { unique } from './filters/unique';
-import { upper } from './filters/upper';
-import { wikilink } from './filters/wikilink';
-import { duration } from './filters/duration';
+
+export type { FilterMetadata, ParamValidationResult, ParamValidator } from '@obsidian/knap';
 
 // ============================================================================
 // Filter Metadata for Validation
 // ============================================================================
 
-export interface ParamValidationResult {
-	valid: boolean;
-	error?: string;
-}
+const markdownFilter: TemplateFilter = (value, param, context) =>
+	markdown(value, param ?? context?.currentUrl);
+markdownFilter.metadata = {};
 
-export type ParamValidator = (param: string | undefined) => ParamValidationResult;
-
-export interface FilterMetadata {
-	example?: string;
-	validateParams?: ParamValidator;
-}
-
-export const filterMetadata: Record<string, FilterMetadata> = {
-	// Filters with validators
-	calc: { example: 'calc:"+10"', validateParams: validateCalcParams },
-	date_modify: { example: 'date_modify:"+1 day"', validateParams: validateDateModifyParams },
-	map: { example: 'map:x => x.name', validateParams: validateMapParams },
-	replace: { example: 'replace:"old":"new"', validateParams: validateReplaceParams },
-	slice: { example: 'slice:0,5', validateParams: validateSliceParams },
-	template: { example: 'template:"${name}"', validateParams: validateTemplateParams },
-
-	// Filters with optional parameters (examples for documentation)
-	blockquote: {},
-	callout: { example: 'callout:info' },
-	camel: {},
-	capitalize: {},
-	date: { example: 'date:"YYYY-MM-DD"' },
-	decode_uri: {},
-	duration: {},
-	first: {},
-	footnote: {},
-	fragment_link: {},
-	html_to_json: {},
-	image: {},
-	join: { example: 'join:", "' },
-	kebab: {},
-	last: {},
-	length: {},
-	link: {},
-	list: { example: 'list:numbered', validateParams: validateListParams },
-	lower: {},
-	markdown: {},
-	merge: {},
-	nth: { example: 'nth:2', validateParams: validateNthParams },
-	number_format: {},
-	object: { example: 'object:keys', validateParams: validateObjectParams },
-	pascal: {},
-	remove_attr: {},
-	remove_html: {},
-	remove_tags: {},
-	replace_tags: {},
-	reverse: {},
-	round: { example: 'round:2', validateParams: validateRoundParams },
-	safe_name: { example: 'safe_name:windows', validateParams: validateSafeNameParams },
-	snake: {},
-	split: { example: 'split:","' },
-	strip_attr: {},
-	strip_md: {},
-	strip_tags: {},
-	stripmd: {},
-	table: {},
-	title: {},
-	trim: {},
-	uncamel: {},
-	unescape: {},
-	unique: {},
-	upper: {},
-	wikilink: {},
+const fragmentLinkFilter: TemplateFilter = (value, param, context) => {
+	const combinedParam = [param, context?.currentUrl].filter(Boolean).join(':');
+	return fragment_link(value, combinedParam);
 };
+fragmentLinkFilter.metadata = {};
 
-export const validFilterNames = new Set(Object.keys(filterMetadata));
+/** Knap's shared filters plus the browser/Defuddle filters enabled by Clipper. */
+export const clipperFilters: Readonly<FilterRegistry> = Object.freeze({
+	...standardFilters,
+	...htmlFilters,
+	markdown: markdownFilter,
+	fragment_link: fragmentLinkFilter,
+});
 
-export const filters: { [key: string]: FilterFunction } = {
-	blockquote,
-	calc,
-	callout,
-	camel,
-	capitalize,
-	date_modify,
-	date,
-	decode_uri,
-	duration,
-	first,
-	footnote,
-	fragment_link,
-	html_to_json,
-	image,
-	join,
-	kebab,
-	last,
-	length,
-	link,
-	list,
-	lower,
-	map,
-	markdown,
-	merge,
-	number_format,
-	nth,
-	object,
-	pascal,
-	reverse,
-	remove_attr,
-	remove_html,
-	remove_tags,
-	replace,
-	replace_tags,
-	round,
-	safe_name,
-	slice,
-	snake,
-	split,
-	strip_attr,
-	strip_md,
-	strip_tags,
-	stripmd: strip_md, // an alias for strip_md
-	table,
-	template,
-	title,
-	trim,
-	uncamel,
-	unescape,
-	unique,
-	upper,
-	wikilink
-};
+export const filters: Readonly<FilterRegistry> = clipperFilters;
+
+export const filterMetadata: Record<string, FilterMetadata> = Object.fromEntries(
+	Object.entries(clipperFilters).map(([name, filter]) => [name, filter.metadata ?? {}]),
+);
+
+export const validFilterNames = new Set(Object.keys(clipperFilters));
 
 // Split individual filters
 function splitFilterString(filterString: string): string[] {
@@ -269,21 +126,11 @@ export function applyFilterDirect(
 	// Convert the input to a string if it's not already
 	const stringInput = typeof value === 'string' ? value : JSON.stringify(value);
 
-	// Build params array for special case handling
-	let params = paramString ? [paramString] : [];
-
-	// Special case for markdown filter: use currentUrl if no params provided
-	if (filterName === 'markdown' && !paramString && currentUrl) {
-		params = [currentUrl];
-	}
-
-	// Special case for fragment_link filter: append currentUrl
-	if (filterName === 'fragment_link' && currentUrl) {
-		params.push(currentUrl);
-	}
-
 	// Apply the filter
-	const output = filter(stringInput, params.join(':'));
+	const output = filter(stringInput, paramString, {
+		variables: {},
+		currentUrl,
+	});
 
 	debugLog('Filters', `Filter ${filterName} output:`, output);
 
@@ -331,18 +178,11 @@ export function applyFilters(value: string | any[], filterString: string, curren
 				// Convert the input to a string if it's not already
 				const stringInput = typeof result === 'string' ? result : JSON.stringify(result);
 
-				// Special case for markdown filter: use currentUrl if no params provided
-				if (name === 'markdown' && params.length === 0 && currentUrl) {
-					params.push(currentUrl);
-				}
-
-				// Special case for fragment filter: use currentUrl if no params provided
-				if (name === 'fragment_link' && currentUrl) {
-					params.push(currentUrl);
-				}
-
 				// Apply the filter and get the output
-				const output = filter(stringInput, params.join(':'));
+				const output = filter(stringInput, params.join(':'), {
+					variables: {},
+					currentUrl,
+				});
 
 				debugLog('Filters', `Filter ${name} output:`, output);
 

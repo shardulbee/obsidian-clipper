@@ -10,7 +10,7 @@ import { updatePromptContextVisibility } from './interpreter-settings';
 import { showSettingsSection } from './settings-section-ui';
 import { updatePropertyType } from './property-types-manager';
 import { getMessage } from '../utils/i18n';
-import { parse, validateVariables, validateFilters } from '../utils/parser';
+import { parse, validateVariables, validateFilters } from '@obsidian/knap';
 let hasUnsavedChanges = false;
 
 export function resetUnsavedChanges(): void {

@@ -2,13 +2,65 @@
 // This module provides the main entry point for template compilation,
 // integrating the AST-based renderer with the variable processors.
 
-import { render, RenderContext, AsyncResolver } from './renderer';
-import { applyFilterDirect } from './filters';
+import {
+	createEngine,
+} from '@obsidian/knap';
+import { clipperFilters } from './filters';
 import { processSimpleVariable } from './variables/simple';
 import { processSelector, resolveSelector } from './variables/selector';
 import { processSchema } from './variables/schema';
 import { processPrompt } from './variables/prompt';
 import { isModelVariable, processModelVariable } from './variables/model';
+
+interface ClipperEngineContext {
+	tabId: number;
+}
+
+export interface RenderContext {
+	variables: Record<string, any>;
+	currentUrl: string;
+	tabId?: number;
+}
+
+export type AsyncResolver = (name: string, context: RenderContext) => Promise<any>;
+
+const engine = createEngine<ClipperEngineContext>({ filters: clipperFilters });
+
+interface DeferredTemplates {
+	template: string;
+	variables: Record<string, string>;
+}
+
+/**
+ * Prompt expressions and interpreter model variables must survive the first
+ * render pass. Knap remains application-neutral, so Clipper temporarily maps
+ * them to ordinary variables and restores their original template syntax in
+ * the rendered output for the interpreter-specific post-processing pass.
+ */
+function protectDeferredTemplates(text: string, variables: Record<string, any>): DeferredTemplates {
+	const deferredVariables: Record<string, string> = {};
+	let deferredIndex = 0;
+
+	const template = text.replace(/{{(-)?\s*([\s\S]*?)\s*(-)?}}/g, (match, trimLeft, expression, trimRight) => {
+		const value = String(expression).trim();
+		const isPrompt = /^(?:prompt:)?["']/.test(value);
+		const isModel = /^(?:model|modelId|modelProvider)(?:\s*\||\s*$)/.test(value);
+
+		if (!isPrompt && !isModel) {
+			return match;
+		}
+
+		let key: string;
+		do {
+			key = `__knap_deferred_${deferredIndex++}`;
+		} while (key in variables || key in deferredVariables);
+
+		deferredVariables[key] = match;
+		return `{{${trimLeft ? '-' : ''}${key}${trimRight ? '-' : ''}}}`;
+	});
+
+	return { template, variables: deferredVariables };
+}
 
 /**
  * A function that processes a selector match string and returns the result.
@@ -37,35 +89,48 @@ export async function compileTemplate(
 ): Promise<string> {
 	// Strip text fragment from URL
 	currentUrl = currentUrl.replace(/#:~:text=[^&]+(&|$)/, '');
+	const deferred = protectDeferredTemplates(text, variables);
 
-	// Use provided resolver or default browser-based one
-	const asyncResolver = customAsyncResolver ?? (async (name: string, ctx: RenderContext): Promise<any> => {
-		if (name.startsWith('selector:') || name.startsWith('selectorHtml:')) {
-			return resolveSelector(ctx.tabId!, name);
+	// Keep application-specific variable resolution outside the shared engine.
+	const resolveVariable = async (name: string): Promise<any> => {
+		if (customAsyncResolver) {
+			const value = await customAsyncResolver(name, {
+				variables,
+				currentUrl,
+				tabId,
+			});
+			if (value !== undefined) {
+				return value;
+			}
 		}
-		return undefined;
-	});
 
-	// Create render context with custom variable resolver
-	const context: RenderContext = {
-		variables,
-		currentUrl,
-		tabId,
-		applyFilterDirect,
-		asyncResolver,
+		if (name.startsWith('selector:') || name.startsWith('selectorHtml:')) {
+			return resolveSelector(tabId, name);
+		}
+		if (name.startsWith('schema:')) {
+			return processSchema(`{{${name}}}`, variables, currentUrl);
+		}
+
+		return undefined;
 	};
 
-	// Render the template using the AST-based renderer
-	const result = await render(text, context);
+	const result = await engine.render(deferred.template, {
+		variables: {
+			...variables,
+			...deferred.variables,
+		},
+		currentUrl,
+		context: { tabId },
+		resolveVariable,
+	});
 
 	// Log any errors (but don't fail - return partial output)
 	if (result.errors.length > 0) {
 		console.error('Template compilation errors:', result.errors.map(e => `Line ${e.line}: ${e.message}`).join('; '));
 	}
 
-	// Skip post-processing if no deferred variables were output
-	// This optimization avoids regex-parsing the entire output when not needed
-	if (!result.hasDeferredVariables) {
+	// Skip application post-processing if no prompt/model expressions were protected.
+	if (Object.keys(deferred.variables).length === 0) {
 		return result.output;
 	}
 
@@ -122,4 +187,3 @@ export async function processVariables(
 
 	return result;
 }
-
