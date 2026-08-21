@@ -30,6 +30,28 @@ describe('Model variables in templates', () => {
 		expect(output).toBe('Summarized by {{model}} ({{modelId}}) from {{modelProvider}}');
 	});
 
+	test('preserve their filter chains through compilation', async () => {
+		generalSettings.interpreterEnabled = true;
+		const output = await compileTemplate(
+			0,
+			'{{model|lower|replace:" ":"-"}}',
+			{},
+			'https://example.com',
+		);
+		expect(output).toBe('{{model|lower|replace:" ":"-"}}');
+	});
+
+	test('preserves prompt expressions for the interpreter', async () => {
+		generalSettings.interpreterEnabled = true;
+		const output = await compileTemplate(
+			0,
+			'{{"Summarize this"|callout:("info","Summary",false)}}',
+			{},
+			'https://example.com',
+		);
+		expect(output).toBe('{{"Summarize this"|callout:("info","Summary",false)}}');
+	});
+
 	test('are removed when interpreter is disabled', async () => {
 		generalSettings.interpreterEnabled = false;
 		const output = await compileTemplate(0, 'Summarized by {{model}}', {}, 'https://example.com');

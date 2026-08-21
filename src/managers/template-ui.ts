@@ -10,8 +10,19 @@ import { updatePromptContextVisibility } from './interpreter-settings';
 import { showSettingsSection } from './settings-section-ui';
 import { updatePropertyType } from './property-types-manager';
 import { getMessage } from '../utils/i18n';
-import { parse, validateVariables, validateFilters } from '@obsidian/knap';
+import {
+	parse,
+	validateFilters,
+	validateVariables,
+	type FilterMetadata,
+} from '@obsidianmd/knap';
 let hasUnsavedChanges = false;
+
+const clipperFilterMetadata: Record<string, FilterMetadata> = {
+	markdown: {},
+	html_to_json: {},
+	remove_html: {},
+};
 
 export function resetUnsavedChanges(): void {
 	hasUnsavedChanges = false;
@@ -707,7 +718,7 @@ function validateTemplateField(field: HTMLInputElement | HTMLTextAreaElement, sh
 
 	// Validate variable names and filter usage
 	const variableWarnings = validateVariables(result.ast);
-	const filterWarnings = validateFilters(result.ast);
+	const filterWarnings = validateFilters(result.ast, clipperFilterMetadata);
 
 	// Combine errors and warnings into a single list
 	const issues: { line: number; message: string; isError: boolean }[] = [

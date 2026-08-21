@@ -2,9 +2,7 @@
 // This module provides the main entry point for template compilation,
 // integrating the AST-based renderer with the variable processors.
 
-import {
-	createEngine,
-} from '@obsidian/knap';
+import { createEngine } from '@obsidianmd/knap';
 import { clipperFilters } from './filters';
 import { processSimpleVariable } from './variables/simple';
 import { processSelector, resolveSelector } from './variables/selector';
