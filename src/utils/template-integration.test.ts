@@ -159,6 +159,19 @@ describe('Template fixtures', () => {
 	});
 });
 
+describe('Template filter compatibility', () => {
+	test('supports nth offset expressions', async () => {
+		const output = await compileTemplate(
+			0,
+			'{{items|nth:n+3}}',
+			{ items: '["a","b","c","d","e"]' },
+			'https://example.com',
+		);
+
+		expect(JSON.parse(output)).toEqual(['c', 'd', 'e']);
+	});
+});
+
 describe('Template diagnostics', () => {
 	test('surfaces non-fatal Knap filter warnings', async () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
