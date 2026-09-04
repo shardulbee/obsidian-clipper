@@ -3,8 +3,8 @@ import {
 	standardFilters,
 	type FilterRegistry,
 	type TemplateFilter,
-} from '@obsidianmd/knap';
-import { htmlFilters } from '@obsidianmd/knap/html';
+} from 'knap';
+import { htmlFilters } from 'knap/html';
 import { markdown } from './filters/markdown';
 
 export interface ClipperTemplateContext {

@@ -16,7 +16,7 @@ import {
 	validateFilters,
 	validateVariables,
 	type FilterMetadata,
-} from '@obsidianmd/knap';
+} from 'knap';
 let hasUnsavedChanges = false;
 
 const clipperFilterMetadata: Record<string, FilterMetadata> = {
