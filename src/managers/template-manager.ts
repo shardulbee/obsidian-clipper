@@ -17,8 +17,31 @@ export function setEditingTemplateIndex(index: number): void {
 	editingTemplateIndex = index;
 }
 
+async function loadManagedTemplates(): Promise<Template[] | null> {
+	try {
+		const { templates } = await browser.storage.managed.get('templates');
+		if (typeof templates !== 'string') return null;
+
+		const parsed = JSON.parse(templates);
+		if (!Array.isArray(parsed) || !parsed.every(template => template && Array.isArray(template.properties))) {
+			throw new Error('Managed templates must be a JSON array of templates');
+		}
+		return parsed;
+	} catch (error) {
+		console.warn('Unable to load managed templates:', error);
+		return null;
+	}
+}
+
 export async function loadTemplates(): Promise<Template[]> {
 	try {
+		const managedTemplates = await loadManagedTemplates();
+		if (managedTemplates) {
+			templates = managedTemplates;
+			await updateGlobalPropertyTypes(templates);
+			return templates;
+		}
+
 		const data = await browser.storage.sync.get(['template_list']);
 		let templateIds = data.template_list as string[] || [];
 

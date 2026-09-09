@@ -1,0 +1,9 @@
+{
+	"type": "object",
+	"properties": {
+		"templates": {
+			"type": "string",
+			"description": "A JSON array of managed Clipper templates"
+		}
+	}
+}

@@ -1,5 +1,6 @@
 {
 	"manifest_version": 3,
+	"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoGgWgNMiMaz09rGqJIAgydZsa0sMmRBl9S2XXjaCiWD3d3jz9oncNHQtC9wfGtSUpgg0EPlszmP/zzxrzfyvtIA5VAdjrndQP42eqM8tSkLIQXiNrBPKgJEdUAX5rB8OO14eix8drYHgKil6IKsFd38vtEjw/ftU/w+wi7tw/MsjBQ5OWti0/lZ5ImgjFA26sefXPKFXGnuUz8P0L44En3cV/nogOI12HdPHjVqLC8x3jPosYjgv1M9UI9bgz0kEGiBVdi8phBMtInMTRi/3Hj+xtrMj7b2SC3LHet8apnS1mxI1EsU351amZdhCyB1cTWHHd6tkzklIg+CkPqs1SQIDAQAB",
 	"default_locale": "en",
 	"name": "Obsidian Web Clipper",
 	"homepage_url": "https://obsidian.md/",
@@ -15,6 +16,9 @@
 		"scripting",
 		"declarativeNetRequest"
 	],
+	"storage": {
+		"managed_schema": "managed-storage-schema.json"
+	},
 	"host_permissions": [
 		"<all_urls>",
 		"http://*/*",

@@ -13,6 +13,9 @@ export const storage = {
 		get: async () => ({}),
 		set: async () => {},
 	},
+	managed: {
+		get: async () => ({}),
+	},
 	sync: {
 		get: async () => ({}),
 		set: async () => {},
